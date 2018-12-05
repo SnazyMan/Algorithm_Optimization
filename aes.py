@@ -21,7 +21,7 @@ if __name__ == "__main__":
     t1 = ws.add_job_from_file("aes.gms")
     t1.run()
 
-    symbol_list = ["Z", "X"]
+    symbol_list = ["Z", "x", "s", "theta"]
 
     for symbol in symbol_list:    
         for rec in t1.out_db[symbol]:

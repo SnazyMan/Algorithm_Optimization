@@ -1,0 +1,374 @@
+GAMS 25.1.2  r67455 Released Aug  1, 2018 LEX-LEG x86 64bit/Linux                                                                                                                                                                      12/05/18 14:39:58 Page 1
+AES
+C o m p i l a t i o n
+
+
+   2   
+   3  sets
+   4         a   agents       / A1, A2, A3, A4 /
+   5         j   job         / J1, J2, J3, J4 / ;
+   6   
+   7  parameter
+   8         assign(j)  assignment constraints
+   9           /    J1       1
+  10                J2       1
+  11                J3       1
+  12                J4       1 / ;
+  13   
+  14  table  d(j,a)  execution delay matrix
+  15                    A1          A2       A3        A4
+  16      J1            50          46       47        40
+  17      J2            51          48       44        1000
+  18      J3            3.2e-8      3.2e-8   3.2e-8    3.2e-8
+  19      J4            1.6e-8      1.6e-8   1.6e-8    1.6e-8;
+  20   
+  21  table c(a,a,j)   communication delay matrix in format (from)agenta.(to)agentb job j
+  22                    J1          J2        J3        J4
+  23      A1.A1         1           1         1         1
+  24      A1.A2         1           1         1         1
+  25      A1.A3         1           1         1         1
+  26      A1.A4         1           1         1         1
+  27      A2.A1         1           1         1         1
+  28      A2.A2         1           1         1         1
+  29      A2.A3         1           1         1         1
+  30      A2.A4         1           1         1         1
+  31      A3.A1         1           1         1         1
+  32      A3.A2         1           1         1         1
+  33      A3.A3         1           1         1         1
+  34      A3.A4         1           1         1         1
+  35      A4.A1         1           1         1         1
+  36      A4.A2         1           1         1         1
+  37      A4.A3         1           1         1         1
+  38      A4.A4         1           1         1         1;
+  39   
+  40   
+  41  table p(j,j) immediate job precedence graph
+  42                J1           J2        J3      J4
+  43      J1        0            1         0       0
+  44      J2        0            0         1       0
+  45      J3        0            0         0       1
+  46      J4        0            0         0       0;
+  47   
+  48   
+  49  table q(j,j) full job precedence graph
+  50                J1           J2        J3      J4
+  51      J1        0            1         1       1
+  52      J2        0            0         1       1
+  53      J3        0            0         0       1
+  54      J4        0            0         0       0;
+GAMS 25.1.2  r67455 Released Aug  1, 2018 LEX-LEG x86 64bit/Linux                                                                                                                                                                      12/05/18 14:39:58 Page 2
+AES
+C o m p i l a t i o n
+
+
+  55   
+  56   
+  57  binary variable x(j,a)       "allocation of jobs to agents" ;
+  58  positive variable s(j)       "schedules start time of job j" ;
+  59  binary variable theta(j,j)   "support variable used to determine whether jobs j and k overlap" ;
+  60  scalar M "upperbound on completion time, set very large by default" / 10000 / ;
+  61  positive variable t          "time to completion";
+  62  variable Z                   "objective function variable";
+  63   
+  64   
+  65  equations
+  66       time                   "time to complete algorithm"
+  67       supply(j)              "each job is assigned to exactly one agent"
+  68       time_constraint(j,a)   "lower bound on time"
+  69       start(j,j)             "job cannot start unless its predecessors are completed"
+  70       start2(j,j,a,a)        "need to rename this lol ** P matrix (job order) applies here **"
+  71       exec_overlap(j,j,a)    "if two jobs are assigned to the same agent, execution times shouldnt overlap"
+  72       single_job(j,j)        "an agent may process at most 1 job at a time"
+  73       single_job2(j,j)       "this also needs renamed"
+  74  ;
+  75   
+  76  time ..                 Z =e= t;
+  77   
+  78  time_constraint(j,a) .. t =g= s(j) + d(j,a)*x(j,a);
+  79   
+  80  supply(j) ..            sum(a, x(j,a))  =e=  assign(j);
+  81   
+  82  start(j,j) ..           p(j,j)*s(j) =g= p(j,j)*s(j);
+  83   
+  84  start2(j,j,a,a) ..      p(j,j)*S(j) =g= p(j,j)*(s(j) + (d(j,a) + c(a,a,j))*(x(j,a) + x(j,a) -1));
+  85  ** start 2 constraint is only valid if p>0, when p = 0, constraint is triviallly 0>=0, degeneracy issue?
+  86   
+  87  exec_overlap(j,j,a) ..  x(j,a) + x(j,a) + theta(j,j) + theta(j,j) =l= 3;
+  88   
+  89  single_job(j,j) ..    -1*(q(j,j) -1)*s(j) - sum(a, d(j,a)*x(j,a)) - s(j) =g= -1*(q(j,j) -1)*(-M)*theta(j,j);
+  90  single_job2(j,j) ..   -1*(q(j,j) -1)*s(j) - sum(a, d(j,a)*x(j,a)) - s(j) =l= -1*(q(j,j) -1)*M*(1-theta(j,j));
+  91  ** The -1*(q(j,k -1) term is needed because the single job constraint should occur only when q(j,k) = 0. since q(j,k) is binary -1*(q(j,k) -1) is equivalent to multiplying by 1 if q(j,k) is 0 and 0 if q(j,k) is 1. There may be a better to do this **
+  92   
+  93   
+  94   
+  95  model aes /all/ ;
+  96  solve aes using MIP minimizing Z;
+  97   
+
+
+COMPILATION TIME     =        0.000 SECONDS      3 MB  25.1.2 r67455 LEX-LEG
+GAMS 25.1.2  r67455 Released Aug  1, 2018 LEX-LEG x86 64bit/Linux                                                                                                                                                                      12/05/18 14:39:58 Page 3
+AES
+Equation Listing    SOLVE aes Using MIP From line 96
+
+
+---- time  =E=  time to complete algorithm
+
+time..  - t + Z =E= 0 ; (LHS = 0)
+     
+
+---- supply  =E=  each job is assigned to exactly one agent
+
+supply(J1)..  x(J1,A1) + x(J1,A2) + x(J1,A3) + x(J1,A4) =E= 1 ; (LHS = 0, INFES = 1 ****)
+     
+supply(J2)..  x(J2,A1) + x(J2,A2) + x(J2,A3) + x(J2,A4) =E= 1 ; (LHS = 0, INFES = 1 ****)
+     
+supply(J3)..  x(J3,A1) + x(J3,A2) + x(J3,A3) + x(J3,A4) =E= 1 ; (LHS = 0, INFES = 1 ****)
+     
+REMAINING ENTRY SKIPPED
+
+
+---- time_constraint  =G=  lower bound on time
+
+time_constraint(J1,A1)..  - 50*x(J1,A1) - s(J1) + t =G= 0 ; (LHS = 0)
+     
+time_constraint(J1,A2)..  - 46*x(J1,A2) - s(J1) + t =G= 0 ; (LHS = 0)
+     
+time_constraint(J1,A3)..  - 47*x(J1,A3) - s(J1) + t =G= 0 ; (LHS = 0)
+     
+REMAINING 13 ENTRIES SKIPPED
+
+
+---- start  =G=  job cannot start unless its predecessors are completed
+
+                NONE
+
+
+---- start2  =G=  need to rename this lol ** P matrix (job order) applies here **
+
+                NONE
+
+
+---- exec_overlap  =L=  if two jobs are assigned to the same agent, execution times shouldnt overlap
+
+exec_overlap(J1,J1,A1)..  2*x(J1,A1) + 2*theta(J1,J1) =L= 3 ; (LHS = 0)
+     
+exec_overlap(J1,J1,A2)..  2*x(J1,A2) + 2*theta(J1,J1) =L= 3 ; (LHS = 0)
+     
+exec_overlap(J1,J1,A3)..  2*x(J1,A3) + 2*theta(J1,J1) =L= 3 ; (LHS = 0)
+     
+REMAINING 13 ENTRIES SKIPPED
+
+
+---- single_job  =G=  an agent may process at most 1 job at a time
+
+GAMS 25.1.2  r67455 Released Aug  1, 2018 LEX-LEG x86 64bit/Linux                                                                                                                                                                      12/05/18 14:39:58 Page 4
+AES
+Equation Listing    SOLVE aes Using MIP From line 96
+
+
+     single_job  =G=  an agent may process at most 1 job at a time
+
+single_job(J1,J1)..  - 50*x(J1,A1) - 46*x(J1,A2) - 47*x(J1,A3) - 40*x(J1,A4) + 10000*theta(J1,J1) =G= 0 ; (LHS = 0)
+     
+single_job(J2,J2)..  - 51*x(J2,A1) - 48*x(J2,A2) - 44*x(J2,A3) - 1000*x(J2,A4) + 10000*theta(J2,J2) =G= 0 ; (LHS = 0)
+     
+single_job(J3,J3)..  - 3.2E-8*x(J3,A1) - 3.2E-8*x(J3,A2) - 3.2E-8*x(J3,A3) - 3.2E-8*x(J3,A4) + 10000*theta(J3,J3) =G= 0 ; (LHS = 0)
+     
+REMAINING ENTRY SKIPPED
+
+
+---- single_job2  =L=  this also needs renamed
+
+single_job2(J1,J1)..  - 50*x(J1,A1) - 46*x(J1,A2) - 47*x(J1,A3) - 40*x(J1,A4) + 10000*theta(J1,J1) =L= 10000 ; (LHS = 0)
+     
+single_job2(J2,J2)..  - 51*x(J2,A1) - 48*x(J2,A2) - 44*x(J2,A3) - 1000*x(J2,A4) + 10000*theta(J2,J2) =L= 10000 ; (LHS = 0)
+     
+single_job2(J3,J3)..  - 3.2E-8*x(J3,A1) - 3.2E-8*x(J3,A2) - 3.2E-8*x(J3,A3) - 3.2E-8*x(J3,A4) + 10000*theta(J3,J3) =L= 10000 ; (LHS = 0)
+     
+REMAINING ENTRY SKIPPED
+
+GAMS 25.1.2  r67455 Released Aug  1, 2018 LEX-LEG x86 64bit/Linux                                                                                                                                                                      12/05/18 14:39:58 Page 5
+AES
+Column Listing      SOLVE aes Using MIP From line 96
+
+
+---- x  allocation of jobs to agents
+
+x(J1,A1)
+                (.LO, .L, .UP, .M = 0, 0, 1, 0)
+        1       supply(J1)
+      -50       time_constraint(J1,A1)
+        2       exec_overlap(J1,J1,A1)
+      -50       single_job(J1,J1)
+      -50       single_job2(J1,J1)
+
+x(J1,A2)
+                (.LO, .L, .UP, .M = 0, 0, 1, 0)
+        1       supply(J1)
+      -46       time_constraint(J1,A2)
+        2       exec_overlap(J1,J1,A2)
+      -46       single_job(J1,J1)
+      -46       single_job2(J1,J1)
+
+x(J1,A3)
+                (.LO, .L, .UP, .M = 0, 0, 1, 0)
+        1       supply(J1)
+      -47       time_constraint(J1,A3)
+        2       exec_overlap(J1,J1,A3)
+      -47       single_job(J1,J1)
+      -47       single_job2(J1,J1)
+
+REMAINING 13 ENTRIES SKIPPED
+
+---- s  schedules start time of job j
+
+s(J1)
+                (.LO, .L, .UP, .M = 0, 0, +INF, 0)
+       -1       time_constraint(J1,A1)
+       -1       time_constraint(J1,A2)
+       -1       time_constraint(J1,A3)
+       -1       time_constraint(J1,A4)
+
+s(J2)
+                (.LO, .L, .UP, .M = 0, 0, +INF, 0)
+       -1       time_constraint(J2,A1)
+       -1       time_constraint(J2,A2)
+       -1       time_constraint(J2,A3)
+       -1       time_constraint(J2,A4)
+
+s(J3)
+                (.LO, .L, .UP, .M = 0, 0, +INF, 0)
+       -1       time_constraint(J3,A1)
+       -1       time_constraint(J3,A2)
+       -1       time_constraint(J3,A3)
+       -1       time_constraint(J3,A4)
+
+REMAINING ENTRY SKIPPED
+GAMS 25.1.2  r67455 Released Aug  1, 2018 LEX-LEG x86 64bit/Linux                                                                                                                                                                      12/05/18 14:39:58 Page 6
+AES
+Column Listing      SOLVE aes Using MIP From line 96
+
+
+---- theta  support variable used to determine whether jobs j and k overlap
+
+theta(J1,J1)
+                (.LO, .L, .UP, .M = 0, 0, 1, 0)
+        2       exec_overlap(J1,J1,A1)
+        2       exec_overlap(J1,J1,A2)
+        2       exec_overlap(J1,J1,A3)
+        2       exec_overlap(J1,J1,A4)
+    10000       single_job(J1,J1)
+    10000       single_job2(J1,J1)
+
+theta(J2,J2)
+                (.LO, .L, .UP, .M = 0, 0, 1, 0)
+        2       exec_overlap(J2,J2,A1)
+        2       exec_overlap(J2,J2,A2)
+        2       exec_overlap(J2,J2,A3)
+        2       exec_overlap(J2,J2,A4)
+    10000       single_job(J2,J2)
+    10000       single_job2(J2,J2)
+
+theta(J3,J3)
+                (.LO, .L, .UP, .M = 0, 0, 1, 0)
+        2       exec_overlap(J3,J3,A1)
+        2       exec_overlap(J3,J3,A2)
+        2       exec_overlap(J3,J3,A3)
+        2       exec_overlap(J3,J3,A4)
+    10000       single_job(J3,J3)
+    10000       single_job2(J3,J3)
+
+REMAINING ENTRY SKIPPED
+
+---- t  time to completion
+
+t
+                (.LO, .L, .UP, .M = 0, 0, +INF, 0)
+       -1       time
+        1       time_constraint(J1,A1)
+        1       time_constraint(J1,A2)
+        1       time_constraint(J1,A3)
+        1       time_constraint(J1,A4)
+        1       time_constraint(J2,A1)
+        1       time_constraint(J2,A2)
+        1       time_constraint(J2,A3)
+        1       time_constraint(J2,A4)
+        1       time_constraint(J3,A1)
+        1       time_constraint(J3,A2)
+        1       time_constraint(J3,A3)
+        1       time_constraint(J3,A4)
+        1       time_constraint(J4,A1)
+        1       time_constraint(J4,A2)
+        1       time_constraint(J4,A3)
+        1       time_constraint(J4,A4)
+
+GAMS 25.1.2  r67455 Released Aug  1, 2018 LEX-LEG x86 64bit/Linux                                                                                                                                                                      12/05/18 14:39:58 Page 7
+AES
+Column Listing      SOLVE aes Using MIP From line 96
+
+
+---- Z  objective function variable
+
+Z
+                (.LO, .L, .UP, .M = -INF, 0, +INF, 0)
+        1       time
+
+GAMS 25.1.2  r67455 Released Aug  1, 2018 LEX-LEG x86 64bit/Linux                                                                                                                                                                      12/05/18 14:39:58 Page 8
+AES
+Model Statistics    SOLVE aes Using MIP From line 96
+
+
+MODEL STATISTICS
+
+BLOCKS OF EQUATIONS           8     SINGLE EQUATIONS           45
+BLOCKS OF VARIABLES           5     SINGLE VARIABLES           26
+NON ZERO ELEMENTS           138     DISCRETE VARIABLES         20
+
+
+GENERATION TIME      =        0.002 SECONDS      4 MB  25.1.2 r67455 LEX-LEG
+
+
+EXECUTION TIME       =        0.002 SECONDS      4 MB  25.1.2 r67455 LEX-LEG
+GAMS 25.1.2  r67455 Released Aug  1, 2018 LEX-LEG x86 64bit/Linux                                                                                                                                                                      12/05/18 14:39:58 Page 9
+AES
+Solution Report     SOLVE aes Using MIP From line 96
+
+
+               S O L V E      S U M M A R Y
+
+     MODEL   aes                 OBJECTIVE  Z
+     TYPE    MIP                 DIRECTION  MINIMIZE
+     SOLVER  CPLEX               FROM LINE  96
+
+**** SOLVER STATUS     1 Normal Completion         
+**** MODEL STATUS      10 Integer Infeasible       
+**** OBJECTIVE VALUE               NA
+
+ RESOURCE USAGE, LIMIT          0.002      1000.000
+ ITERATION COUNT, LIMIT         0    2000000000
+
+IBM ILOG CPLEX   25.1.2 r67455 Released Aug  1, 2018 LEG x86 64bit/Linux      
+Cplex 12.8.0.0
+
+Space for names approximately 0.00 Mb
+Use option 'names no' to turn use of names off
+MIP status(103): integer infeasible
+Cplex Time: 0.00sec (det. 0.05 ticks)
+Problem is integer infeasible.
+
+No solution returned
+
+
+EXECUTION TIME       =        0.000 SECONDS      2 MB  25.1.2 r67455 LEX-LEG
+
+
+USER: Course License University of Pennsylvania      G180827/0001AB-GEN
+      The Wharton School                                        DC13604
+      License for teaching and research at degree granting institutions
+
+
+**** FILE SUMMARY
+
+Input      /home/snazyman/gams_models/Algorithm_Optimization/aes.gms
+Output     /home/snazyman/gams_models/Algorithm_Optimization/_gams_py_gjo0.lst
