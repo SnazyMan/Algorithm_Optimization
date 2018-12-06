@@ -126,21 +126,27 @@ equations
 ;
 
 time ..                 Z =e= t;
-
 time_constraint(j,a) .. t =g= s(j) + d(j,a)*x(j,a);
-
 supply(j) ..            sum(a, x(j,a))  =e=  assign(j);
 
-start(j,j) ..           p(j,j)*s(j) =g= p(j,j)*s(j);
+* start(2) constraint is only valid if p>0. This is "Dollar control on the left for domain"
+* https://www.gams.com/latest/docs/UG_CondExpr.html
+* It is supposed to restict constraints to where P(j,j) > 0
+* Ex: since p(J1,J5) > 0, constraint should be s(J1) >= s(J5)
+* I am not sure it is working though, because I do not see these constraints in output
 
-start2(j,j,a,a) ..      p(j,j)*S(j) =g= p(j,j)*(s(j) + (d(j,a) + c(j,a,a))*(x(j,a) + x(j,a) -1));
-** start 2 constraint is only valid if p>0, when p = 0, constraint is triviallly 0>=0, degeneracy issue?
+start(j,j) $p(j,j) ..           s(j) =g= s(j);
+start2(j,j,a,a) $p(j,j) ..      S(j) =g= (s(j) + (d(j,a) + c(j,a,a))*(x(j,a) + x(j,a) -1));
+
+
 
 exec_overlap(j,j,a) ..  x(j,a) + x(j,a) + theta(j,j) + theta(j,j) =l= 3;
 
-single_job(j,j) ..    -1*(q(j,j) -1)*s(j) - sum(a, d(j,a)*x(j,a)) - s(j) =g= -1*(q(j,j) -1)*(-M)*theta(j,j);
-single_job2(j,j) ..   -1*(q(j,j) -1)*s(j) - sum(a, d(j,a)*x(j,a)) - s(j) =l= -1*(q(j,j) -1)*M*(1-theta(j,j));
-** The -1*(q(j,k -1) term is needed because the single job constraint should occur only when q(j,k) = 0. since q(j,k) is binary -1*(q(j,k) -1) is equivalent to multiplying by 1 if q(j,k) is 0 and 0 if q(j,k) is 1. There may be a better to do this **
+* these constraints should be valif only if q(j,k) = 0
+* Again, I try to use dollar control on the left the same as P
+single_job(j,j) $(not q(j,j)) ..    s(j) - sum(a, d(j,a)*x(j,a)) - s(j) =g= (-M)*theta(j,j);
+single_job2(j,j) $(not q(j,j)) ..   s(j) - sum(a, d(j,a)*x(j,a)) - s(j) =l= M*(1-theta(j,j));
+
 
 
 
