@@ -131,23 +131,22 @@ supply(j) ..            sum(a, x(j,a))  =e=  assign(j);
 
 * start(2) constraint is only valid if p>0. This is "Dollar control on the left for domain"
 * https://www.gams.com/latest/docs/UG_CondExpr.html
-* It is supposed to restict constraints to where P(j,j) > 0
-* Ex: since p(J1,J5) > 0, constraint should be s(J1) >= s(J5)
+* $p(j,j) is supposed to restict constraints to where P(j,j) > 0
+* sameAs(j,k) returns true if j is identical to k : (not sameAs(j,k)) returns true if j != k
+* Ex: since p(J1,J5) > 0 and J1 != J5, constraint should be s(J1) >= s(J5)
 * I am not sure it is working though, because I do not see these constraints in output
 
-start(j,j) $p(j,j) ..           s(j) =g= s(j);
-start2(j,j,a,a) $p(j,j) ..      S(j) =g= (s(j) + (d(j,a) + c(j,a,a))*(x(j,a) + x(j,a) -1));
+start(j,j) $(p(j,j) and (not sameAs(j,j))) ..           s(j) =g= s(j);
+start2(j,j,a,a) $(p(j,j) and (not sameAs(j,j))) ..      S(j) =g= (s(j) + (d(j,a) + c(j,a,a))*(x(j,a) + x(j,a) -1));
 
 
 
 exec_overlap(j,j,a) ..  x(j,a) + x(j,a) + theta(j,j) + theta(j,j) =l= 3;
 
-* these constraints should be valif only if q(j,k) = 0
-* Again, I try to use dollar control on the left the same as P
-single_job(j,j) $(not q(j,j)) ..    s(j) - sum(a, d(j,a)*x(j,a)) - s(j) =g= (-M)*theta(j,j);
-single_job2(j,j) $(not q(j,j)) ..   s(j) - sum(a, d(j,a)*x(j,a)) - s(j) =l= M*(1-theta(j,j));
-
-
+* these constraints should be valif only if q(j,k) = 0 and j != k
+* Again, I try to use dollar control on the left the similar how p was done
+single_job(j,j) $(not q(j,j) and (not sameAs(j,j))) ..    s(j) - sum(a, d(j,a)*x(j,a)) - s(j) =g= (-M)*theta(j,j);
+single_job2(j,j) $(not q(j,j) and (not sameAs(j,j))) ..   s(j) - sum(a, d(j,a)*x(j,a)) - s(j) =l= M*(1-theta(j,j));
 
 
 model aes /all/ ;
